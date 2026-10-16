@@ -40,7 +40,10 @@ attachments bucket as metadata. Three path candidates came out of the round
 none is selected yet, because three intents tie on frequency and the choice
 needs directional cost and a team ranking. Next: interview the control functions
 behind each gate, who can explain *why* the constraints exist.
-See [docs/discovery/](docs/discovery/) for the notes and
+The [service lifecycle value stream](docs/value-streams/service-lifecycle.md)
+is now mapped, with the three MVP paths placed at the recurring moments that
+trigger them and a gaps table recording the friction the MVP deliberately
+leaves uncovered. See [docs/discovery/](docs/discovery/) for the notes and
 [synthesis](docs/discovery/synthesis.md).
 
 ### Stage 2 — MVP
