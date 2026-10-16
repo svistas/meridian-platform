@@ -12,6 +12,17 @@ the decisions and the artefacts — not just the code that came out of it.
 
 ### Lesson 0
 
+Before any platform work, Meridian Health was read as a system rather than as a
+backlog. The [diagnosis](docs/00-context/diagnosis.md) found a hero-based core
+wrapped in bureaucratic gates: shipping depends on a handful of people who hold
+the knowledge, while the controls meant to make the organization safe — the Data
+Protection Review above all — are slow enough that teams quietly route around
+them, which makes it less safe rather than more. The CTO's answer to this was a
+mandate to adopt Backstage. That mandate was answered not with a portal but with
+a request for discovery time first: a tool chosen before the paths are known
+would pave the hero-based core instead of replacing it. The full reading is in
+[Lesson 0: Seeing the System](docs/00-context/lesson-0-seeing-the-system.pdf).
+
 ### Stage 1 — Getting Started
 
 **Discovery, round 1.** Five simulated interviews with backend developers across

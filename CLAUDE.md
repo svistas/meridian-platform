@@ -6,7 +6,10 @@ Galante) and the PlatformEngineering.org AWS reference architecture.
 
 ## Rules
 
-### Current stage: Lesson 0
+### Current stage: Stage 1, discovery round 1 complete
+
+Path candidates exist in `docs/discovery/synthesis.md` but none is selected;
+`docs/paths/` does not exist yet.
 
 No platform code, infrastructure or tooling until a path has been selected
 through discovery and recorded in `docs/paths/`. Writing, research, interviews
