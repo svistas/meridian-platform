@@ -1,0 +1,39 @@
+# meridian-platform
+
+An Internal Developer Platform for Meridian Health, a fictional healthcare company.
+This is a portfolio project: it works through the design and construction of a
+platform as a product, from discovery to a production-ready system, following
+*Thinking in Platforms* (Kaspar von Grünberg & Luca Galante) and the
+[PlatformEngineering.org](https://platformengineering.org) AWS reference
+architecture. The repository is the record of that journey — the reasoning,
+the decisions and the artefacts — not just the code that came out of it.
+
+## Journey
+
+### Lesson 0
+
+### Stage 1 — Getting Started
+
+**Discovery, round 1.** Five simulated interviews with backend developers across
+Appointments, Care Notes, Pharmacy Connect, Patient Messaging and Lab Results,
+each anchored on one real recent piece of work. Every team described the same
+low-resolution value stream — shape the work, set up, build and test, ship, run —
+and four of the five pointed at *set up* or *ship* as the phase that hurts;
+writing the code was never the problem. The central finding is that "get a
+database" and "get through Data Protection Review" are not two intents but one:
+developers need a datastore they are allowed to put patient data in, which makes
+the review a policy gate inside that path rather than a path of its own — and
+one team had already started routing around the gate by describing an
+attachments bucket as metadata. Three path candidates came out of the round
+(compliant datastore, new service to environment, realistic test environment);
+none is selected yet, because three intents tie on frequency and the choice
+needs directional cost and a team ranking. Next: interview the control functions
+behind each gate, who can explain *why* the constraints exist.
+See [docs/discovery/](docs/discovery/) for the notes and
+[synthesis](docs/discovery/synthesis.md).
+
+### Stage 2 — MVP
+
+### Stage 3 — Production Readiness
+
+### Stage 4 — Scaling
