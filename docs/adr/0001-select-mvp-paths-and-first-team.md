@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-16
+status: accepted
+date: 2026-10-19
 decision-makers: Sofia Vistas
 consulted: Security & Compliance, Cloud Ops, SRE (simulated)
 ---
@@ -11,7 +11,7 @@ consulted: Security & Compliance, Cloud Ops, SRE (simulated)
 
 Discovery round 1 (five simulated developer interviews) and conversations with the control functions produced three path candidates that tie on frequency. *Thinking in Platforms* recommends an MVP of exactly three paths, built with one team in mind by about three people (the "3x3 method"). Which paths go into the MVP, in what order, for which team, and who builds them?
 
-Status is **proposed** until the 3x3 proposal is accepted by the CTO (Lesson 3).
+Accepted by the CTO on 2026-10-19 as part of the [3x3 proposal](../proposal/README.md), with one condition: a demo after the first path.
 
 ## Decision Drivers
 
@@ -48,7 +48,7 @@ Chosen option: **A**, because the three candidates are the only recurring intent
 
 ### Confirmation
 
-The MVP proposal (Lesson 3) cites this ADR. Each path record's D5 section is completed with before/after measurements during the MVP.
+The [3x3 proposal](../proposal/README.md) cites this ADR. Each path record's D5 section is completed with before/after measurements during the MVP.
 
 ## Pros and Cons of the Options
 

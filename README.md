@@ -56,7 +56,17 @@ trigger them and a gaps table recording the friction the MVP deliberately
 leaves uncovered. See [docs/discovery/](docs/discovery/) for the notes and
 [synthesis](docs/discovery/synthesis.md).
 
+**The 3x3 proposal.** Stage 1 closed with a pitch to the CTO built on evidence
+rather than a vision: what developers said, what the friction costs, and a
+contained experiment of three paths, three people, three months and one team,
+with before/after targets and a stop rule. The portal was sequenced, not
+rejected. All four decisions were approved, with one condition: a demo after
+the first path. See the [proposal](docs/proposal/README.md).
+
 ### Stage 2 — MVP
+
+Approved and starting with path 01, the compliant datastore, for the
+Appointments team. Non-production only.
 
 ### Stage 3 — Production Readiness
 

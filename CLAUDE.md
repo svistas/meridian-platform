@@ -6,14 +6,18 @@ Galante) and the PlatformEngineering.org AWS reference architecture.
 
 ## Rules
 
-### Current stage: Stage 1 complete, MVP not yet approved
+### Current stage: Stage 2, MVP (non-production)
 
-MVP paths are selected in `docs/paths/`, but ADR-0001 is still `proposed`.
+ADR-0001 is accepted. Build the MVP paths in order, one at a time:
+01 compliant datastore first; 02 and 03 are not started until asked.
 
-No platform code, infrastructure or tooling until ADR-0001 is accepted and the
-3x3 proposal is approved. Writing, research, interviews and diagrams are in
-scope; Terraform, manifests, pipelines, scaffolding and CLI tools are not. If a
-task seems to need code, say what is missing instead of writing it.
+- Non-production only: a local cluster or a sandbox account, never production.
+- Do NOT add identity, a central policy engine or state yet. Security rules
+  are defaults inside the path itself (the book's MVP scope).
+- Do not design for reusability across paths; the MVP may be thrown away.
+- Build the capability behind a simple expert interface first (e.g. a script
+  or repository convention); a workflow-embedded interface comes later.
+- Synthetic data only.
 
 ### Vocabulary
 
