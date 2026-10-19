@@ -1,5 +1,10 @@
 # GitHub Actions authenticates through OpenID Connect. No access keys exist
 # anywhere (ADR-0003).
+#
+# Two roles, not one (ADR-0004): pull requests get a read-only role that can
+# run `terraform plan`, and only the main branch gets a role that can change
+# anything. A pull request from a fork or a compromised workflow cannot reach
+# the apply role.
 
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
@@ -7,9 +12,14 @@ resource "aws_iam_openid_connect_provider" "github" {
   thumbprint_list = []
 }
 
-# Who may assume the role: only this repository, and only from the main branch
-# or from a pull request. Nothing else in GitHub can reach this account.
-data "aws_iam_policy_document" "ci_assume_role" {
+locals {
+  oidc_subject_pull_request = "repo:${var.github_repository}:pull_request"
+  oidc_subject_main         = "repo:${var.github_repository}:ref:refs/heads/main"
+}
+
+# Trust documents: each role trusts exactly one GitHub subject.
+
+data "aws_iam_policy_document" "plan_assume_role" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -28,24 +38,134 @@ data "aws_iam_policy_document" "ci_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repository}:ref:refs/heads/main",
-        "repo:${var.github_repository}:pull_request",
-      ]
+      values   = [local.oidc_subject_pull_request]
     }
   }
 }
 
-resource "aws_iam_role" "ci" {
-  name               = "meridian-platform-ci"
-  description        = "Assumed by GitHub Actions in ${var.github_repository} to run the compliant-datastore path"
-  assume_role_policy = data.aws_iam_policy_document.ci_assume_role.json
+data "aws_iam_policy_document" "apply_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = [local.oidc_subject_main]
+    }
+  }
 }
 
-# What the role may do. Scoped to the services path 01 needs, and to this
-# path's own resources where a resource ARN can express that.
-data "aws_iam_policy_document" "ci_permissions" {
-  # Terraform state.
+# ---------------------------------------------------------------------------
+# meridian-ci-plan: pull requests. Reads everything the path touches, writes
+# nothing except the state lock file.
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "ci_plan" {
+  name               = "meridian-ci-plan"
+  description        = "Pull requests in ${var.github_repository}: terraform plan only"
+  assume_role_policy = data.aws_iam_policy_document.plan_assume_role.json
+}
+
+data "aws_iam_policy_document" "ci_plan_permissions" {
+  # Read the state, and nothing else in the bucket.
+  statement {
+    sid       = "ReadTerraformState"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.state.arn]
+  }
+
+  statement {
+    sid       = "ReadStateObjects"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.state.arn}/*"]
+  }
+
+  # Native S3 locking: plan takes the lock, so it must write and remove the
+  # lock file -- but only the lock file, never the state itself.
+  statement {
+    sid    = "StateLockFileOnly"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = ["${aws_s3_bucket.state.arn}/*.tflock"]
+  }
+
+  # Read-only on the services the path reads during a plan.
+  statement {
+    sid    = "DescribeResources"
+    effect = "Allow"
+    actions = [
+      "rds:Describe*",
+      "rds:ListTagsForResource",
+      "ec2:Describe*",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:ListSecrets",
+      "secretsmanager:GetResourcePolicy",
+      "logs:DescribeLogGroups",
+      "logs:ListTagsForResource",
+    ]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
+
+  # Key metadata only: no Encrypt, Decrypt or CreateGrant.
+  statement {
+    sid    = "ReadKey"
+    effect = "Allow"
+    actions = [
+      "kms:DescribeKey",
+      "kms:ListAliases",
+      "kms:GetKeyRotationStatus",
+    ]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "ci_plan" {
+  name   = "compliant-datastore-plan"
+  role   = aws_iam_role.ci_plan.id
+  policy = data.aws_iam_policy_document.ci_plan_permissions.json
+}
+
+# ---------------------------------------------------------------------------
+# meridian-ci-apply: the main branch. Creates and destroys datastores.
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "ci_apply" {
+  name               = "meridian-ci-apply"
+  description        = "Merges to main in ${var.github_repository}: terraform apply"
+  assume_role_policy = data.aws_iam_policy_document.apply_assume_role.json
+}
+
+data "aws_iam_policy_document" "ci_apply_permissions" {
+  # Terraform state, read and write.
   statement {
     sid    = "TerraformState"
     effect = "Allow"
@@ -62,11 +182,18 @@ data "aws_iam_policy_document" "ci_permissions" {
   }
 
   # Databases, their parameter groups and subnet groups.
+  # rds:* is known debt in the sandbox; see ADR-0004. Fenced to one region.
   statement {
     sid       = "Databases"
     effect    = "Allow"
     actions   = ["rds:*"]
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
   }
 
   # The master password is managed by RDS in Secrets Manager.
@@ -83,6 +210,12 @@ data "aws_iam_policy_document" "ci_permissions" {
       "secretsmanager:RotateSecret",
     ]
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
   }
 
   # Encryption with the platform key only.
@@ -95,9 +228,23 @@ data "aws_iam_policy_document" "ci_permissions" {
       "kms:Decrypt",
       "kms:ReEncrypt*",
       "kms:GenerateDataKey*",
-      "kms:CreateGrant",
     ]
     resources = [aws_kms_key.datastores.arn]
+  }
+
+  # Grants only for AWS services acting on our behalf (RDS encrypting storage),
+  # never a grant handed to an arbitrary principal.
+  statement {
+    sid       = "PlatformKeyGrantsForAWSResources"
+    effect    = "Allow"
+    actions   = ["kms:CreateGrant"]
+    resources = [aws_kms_key.datastores.arn]
+
+    condition {
+      test     = "Bool"
+      variable = "kms:GrantIsForAWSResource"
+      values   = ["true"]
+    }
   }
 
   statement {
@@ -105,6 +252,12 @@ data "aws_iam_policy_document" "ci_permissions" {
     effect    = "Allow"
     actions   = ["kms:ListAliases"]
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
   }
 
   # Reading the network, and managing the security groups a datastore needs.
@@ -123,6 +276,12 @@ data "aws_iam_policy_document" "ci_permissions" {
       "ec2:DeleteTags",
     ]
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
   }
 
   # Postgres logs exported to CloudWatch.
@@ -136,25 +295,20 @@ data "aws_iam_policy_document" "ci_permissions" {
       "logs:TagResource",
     ]
     resources = ["*"]
-  }
-
-  # RDS needs its service-linked role to exist.
-  statement {
-    sid       = "ServiceLinkedRole"
-    effect    = "Allow"
-    actions   = ["iam:CreateServiceLinkedRole"]
-    resources = ["*"]
 
     condition {
       test     = "StringEquals"
-      variable = "iam:AWSServiceName"
-      values   = ["rds.amazonaws.com"]
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
     }
   }
+
+  # No iam:CreateServiceLinkedRole: the bootstrap owns that role
+  # (iam-service-linked.tf).
 }
 
-resource "aws_iam_role_policy" "ci" {
-  name   = "compliant-datastore"
-  role   = aws_iam_role.ci.id
-  policy = data.aws_iam_policy_document.ci_permissions.json
+resource "aws_iam_role_policy" "ci_apply" {
+  name   = "compliant-datastore-apply"
+  role   = aws_iam_role.ci_apply.id
+  policy = data.aws_iam_policy_document.ci_apply_permissions.json
 }

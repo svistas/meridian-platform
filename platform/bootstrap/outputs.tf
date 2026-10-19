@@ -1,8 +1,14 @@
-# The two the build brief asks for.
+# The brief asks for the role ARN and the bucket name. There are two roles now
+# (ADR-0004), so both are output.
 
-output "ci_role_arn" {
-  description = "Set this as the repository variable the workflows read (phase 4)."
-  value       = aws_iam_role.ci.arn
+output "ci_plan_role_arn" {
+  description = "Assumed by pull-request workflows. Read-only."
+  value       = aws_iam_role.ci_plan.arn
+}
+
+output "ci_apply_role_arn" {
+  description = "Assumed by workflows on main. Can create and destroy datastores."
+  value       = aws_iam_role.ci_apply.arn
 }
 
 output "state_bucket_name" {
