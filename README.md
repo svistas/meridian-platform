@@ -37,9 +37,19 @@ the review a policy gate inside that path rather than a path of its own — and
 one team had already started routing around the gate by describing an
 attachments bucket as metadata. Three path candidates came out of the round
 (compliant datastore, new service to environment, realistic test environment);
-none is selected yet, because three intents tie on frequency and the choice
-needs directional cost and a team ranking. Next: interview the control functions
-behind each gate, who can explain *why* the constraints exist.
+three intents tie on frequency, so the choice needed directional cost and a
+team ranking.
+
+**Control functions and path selection.** Security & Compliance, Cloud Ops and
+SRE were interviewed after the users, to learn *why* each gate exists
+([notes](docs/discovery/control-functions.md)). The Data Protection Review
+turned out to be mostly a stable checklist, and the CISO's real need is
+visibility of where PHI lives rather than a weekly meeting. Each candidate became
+a [path record](docs/paths/README.md) with a directional cost of inactivity:
+about €130,800 a year as a lower bound. [ADR-0001](docs/adr/0001-select-mvp-paths-and-first-team.md)
+proposes the three MVP paths in build order (compliant datastore, service to
+environment, test environment), Appointments as the first team after a
+[force-ranking](docs/discovery/team-ranking.md), and a three-person build crew.
 The [service lifecycle value stream](docs/value-streams/service-lifecycle.md)
 is now mapped, with the three MVP paths placed at the recurring moments that
 trigger them and a gaps table recording the friction the MVP deliberately

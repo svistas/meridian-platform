@@ -6,16 +6,14 @@ Galante) and the PlatformEngineering.org AWS reference architecture.
 
 ## Rules
 
-### Current stage: Stage 1, discovery round 1 complete
+### Current stage: Stage 1 complete, MVP not yet approved
 
-Path candidates exist in `docs/discovery/synthesis.md` but none is selected;
-`docs/paths/` does not exist yet.
+MVP paths are selected in `docs/paths/`, but ADR-0001 is still `proposed`.
 
-No platform code, infrastructure or tooling until a path has been selected
-through discovery and recorded in `docs/paths/`. Writing, research, interviews
-and diagrams are in scope; Terraform, manifests, pipelines, scaffolding and CLI
-tools are not. If a task seems to need code, say what the missing discovery is
-instead of writing it.
+No platform code, infrastructure or tooling until ADR-0001 is accepted and the
+3x3 proposal is approved. Writing, research, interviews and diagrams are in
+scope; Terraform, manifests, pipelines, scaffolding and CLI tools are not. If a
+task seems to need code, say what is missing instead of writing it.
 
 ### Vocabulary
 
