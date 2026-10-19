@@ -1,0 +1,4 @@
+# Copy this file to terraform.tfvars and set your own address.
+# terraform.tfvars is gitignored; this example file is not.
+
+budget_alert_email = "alerts@example.com"
