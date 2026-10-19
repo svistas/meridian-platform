@@ -66,7 +66,11 @@ the first path. See the [proposal](docs/proposal/README.md).
 ### Stage 2 — MVP
 
 Approved and starting with path 01, the compliant datastore, for the
-Appointments team. Non-production only.
+Appointments team. Non-production only. Path 01 was designed through a
+deep-dive interview and the book's perfect-world → reality → options
+sequence: every datastore now gets PHI-grade defaults, so classification no
+longer affects how fast a team can move
+([ADR-0002](docs/adr/0002-compliant-datastore-path-design.md)).
 
 ### Stage 3 — Production Readiness
 

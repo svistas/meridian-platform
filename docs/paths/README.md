@@ -13,6 +13,8 @@ Paths are placed on the service lifecycle value stream: see [../value-streams/se
 | 03 | [Isolated test environment](03-isolated-test-environment.md) | Test against realistic dependencies without competing for staging | Queued | ~€46,800 | Low |
 | | **Total** | | | **~€130,800** | |
 
+Path 01 design: see 01-compliant-datastore-design.md and ADR-0002.
+
 ## How the cost of inactivity was estimated
 
 Following the book's method: runs per year × hours per run (user team and adjacent teams) × fully loaded hourly cost.
