@@ -19,3 +19,10 @@ output "master_user_secret_arn" {
 output "classification" {
   value = var.classification
 }
+
+output "log_group_names" {
+  value = [
+    aws_cloudwatch_log_group.postgresql.name,
+    aws_cloudwatch_log_group.upgrade.name,
+  ]
+}

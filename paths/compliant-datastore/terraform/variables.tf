@@ -25,7 +25,7 @@ variable "vpc_id" {
 }
 
 variable "engine_version" {
-  description = "Postgres version used for every datastore in this path."
+  description = "Major Postgres version for every datastore. Major only: RDS picks the current minor, and auto_minor_version_upgrade keeps it current."
   type        = string
-  default     = "17.9"
+  default     = "17"
 }

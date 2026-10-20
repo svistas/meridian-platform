@@ -20,6 +20,10 @@ locals {
     classification = var.classification
     "managed-by"   = "meridian-platform"
     path           = "compliant-datastore"
+
+    # Recorded so the inventory can show it; the flag itself is raised by
+    # validate_requests.py, not here.
+    "data-leaves-meridian" = var.data_leaves_meridian
   }
 }
 
@@ -35,6 +39,20 @@ resource "aws_db_parameter_group" "this" {
     name         = "rds.force_ssl"
     value        = "1"
     apply_method = "pending-reboot"
+  }
+
+  # Who connected and when. Dynamic parameters, so they take effect without a
+  # reboot.
+  parameter {
+    name         = "log_connections"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  parameter {
+    name         = "log_disconnections"
+    value        = "1"
+    apply_method = "immediate"
   }
 
   tags = local.tags
@@ -56,6 +74,21 @@ resource "aws_security_group" "this" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# RDS creates these log groups itself on first export, with no retention set,
+# which means logs are kept forever and cost money forever. Creating them here
+# first fixes the retention at 90 days.
+resource "aws_cloudwatch_log_group" "postgresql" {
+  name              = "/aws/rds/instance/${var.service}/postgresql"
+  retention_in_days = 90
+  tags              = local.tags
+}
+
+resource "aws_cloudwatch_log_group" "upgrade" {
+  name              = "/aws/rds/instance/${var.service}/upgrade"
+  retention_in_days = 90
+  tags              = local.tags
 }
 
 resource "aws_db_instance" "this" {
@@ -89,8 +122,9 @@ resource "aws_db_instance" "this" {
 
   # Guarantee: the master password is generated and held by RDS in Secrets
   # Manager. It is never in Terraform state, in a variable, or in an output.
-  username                    = "meridian"
-  manage_master_user_password = true
+  username                      = "meridian"
+  manage_master_user_password   = true
+  master_user_secret_kms_key_id = var.kms_key_arn
 
   # Guarantee: tags.
   tags                  = local.tags
@@ -103,4 +137,11 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot = true
 
   auto_minor_version_upgrade = true
+
+  # The log groups must exist before RDS starts exporting into them, or RDS
+  # creates them itself with no retention.
+  depends_on = [
+    aws_cloudwatch_log_group.postgresql,
+    aws_cloudwatch_log_group.upgrade,
+  ]
 }

@@ -60,7 +60,9 @@ For every request, after apply, `verify_guarantee.py` confirms through the AWS A
 | Backup retention | 35 days |
 | TLS | enforced (`rds.force_ssl = 1` in the parameter group) |
 | Logs | Postgres logs exported to CloudWatch |
-| Master password | managed by RDS in Secrets Manager (never in Terraform state or outputs) |
+| Master password | managed by RDS in Secrets Manager (never in Terraform state or outputs), the secret encrypted with the platform's KMS key |
+| Connection logging | `log_connections` and `log_disconnections` both on |
+| Log retention | 90 days on both CloudWatch log groups |
 | Tags | `service`, `team`, `cost-center`, `classification`, `managed-by = meridian-platform`, `path = compliant-datastore` |
 
 Size mapping: `small` → `db.t4g.micro`, 20 GB; `medium` → `db.t4g.small`, 50 GB. No Multi-AZ. In the sandbox only: no deletion protection, skip the final snapshot.

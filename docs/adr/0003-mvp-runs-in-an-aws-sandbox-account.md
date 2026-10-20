@@ -27,6 +27,8 @@ Path 01 must create real databases whose safety properties (encryption with a ma
 
 Chosen option: **a dedicated AWS sandbox account**, because it is the only option where encryption keys, backups and network isolation are real and can be verified through the AWS API.
 
+The account is not new: it reuses a personal AWS account opened in 2023 and used for Elastic Beanstalk, RDS, EKS and container experiments during 2024. Before the bootstrap was planned it was verified empty of the resources this path touches -- no RDS instances, clusters, snapshots, subnet groups or parameter groups in any region, no S3 buckets, no customer-managed KMS keys and no secrets -- and the leftover RDS service-linked role from 2024 was deleted so the bootstrap creates its own. One long-lived access key on an `admin` IAM user was deactivated, since this ADR rules out long-lived credentials. "Nothing else running in it" should therefore be read as verified for the services this path uses, not as a guarantee about every service in the account.
+
 Guardrails:
 
 * One region (`eu-west-1`), one account, nothing else running in it.
