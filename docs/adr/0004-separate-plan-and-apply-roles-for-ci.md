@@ -41,6 +41,20 @@ Both are fenced to `eu-west-1` with an `aws:RequestedRegion` condition, and `kms
 * Bad, because **`rds:*` in the sandbox is known debt, tightened in Production Readiness.** Enumerating RDS actions now would likely fail an apply mid-run on a missing permission, and the MVP's own code is throwaway; the region fence and the role split bound the risk until a Security-owned policy layer replaces this.
 * Neutral, because the plan role still holds real credentials: read access to a sandbox with no real data.
 
+### Update, 2026-10-20: trust the immutable subject
+
+The first real CI run failed at the OIDC step with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. CloudTrail showed why: the token GitHub issued carried the subject
+
+```
+repo:svistas@150247420/meridian-platform@1422352369:pull_request
+```
+
+while the trust policy expected `repo:svistas/meridian-platform:pull_request`. GitHub now identifies the repository in the subject by immutable numeric ids as well as by name, for every repository created after 15 July 2026. Both roles' conditions were rewritten against the id-bearing form, with the ids as variables.
+
+The name-only spelling was **not** kept as an accepted alternative. Accepting it would mean the trust policy is also satisfied by any future repository that takes the name `svistas/meridian-platform` — after this one is renamed, transferred or deleted. Repository names are recyclable; the ids are not. Trusting only the immutable form removes that path entirely, at the cost of the policy needing an update if the repository is ever recreated from scratch, which is the right trade for a policy that grants write access to an AWS account.
+
+This is also a note about method: no amount of reading the YAML, pinning actions or unit testing would have found this. It took one real run.
+
 ### Confirmation
 
 The phase 4 workflows reference the two roles by separate repository variables. A pull request that tries to apply fails at the AWS API, not at a check inside the workflow.

@@ -19,8 +19,26 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  oidc_subject_pull_request = "repo:${var.github_repository}:pull_request"
-  oidc_subject_main         = "repo:${var.github_repository}:ref:refs/heads/main"
+  # GitHub's OIDC subject identifies the repository by immutable numeric ids as
+  # well as by name:
+  #
+  #   repo:<owner>@<owner_id>/<repo>@<repo_id>:<context>
+  #
+  # Every repository created after 15 July 2026 issues tokens in this form, and
+  # this one was. Only the immutable form is trusted here. The older name-only
+  # spelling is deliberately not accepted as an alternative: a trust policy
+  # written against a name would also be satisfied by a different repository
+  # that later takes this name, after this one is renamed or deleted. The ids
+  # cannot be recycled, so matching on them closes that off.
+  #
+  # https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect
+  github_owner = split("/", var.github_repository)[0]
+  github_repo  = split("/", var.github_repository)[1]
+
+  oidc_repository = "repo:${local.github_owner}@${var.github_owner_id}/${local.github_repo}@${var.github_repo_id}"
+
+  oidc_subject_pull_request = "${local.oidc_repository}:pull_request"
+  oidc_subject_main         = "${local.oidc_repository}:ref:refs/heads/main"
 }
 
 # Trust documents: each role trusts exactly one GitHub subject.
