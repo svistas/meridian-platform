@@ -83,6 +83,8 @@ Size mapping: `small` → `db.t4g.micro`, 20 GB; `medium` → `db.t4g.small`, 50
 
 **Phase 5: Verification and inventory.** `verify_guarantee.py` checks every row of the guarantee table for every request and exits non-zero on any failure. `inventory.py` writes `inventory/datastores.md`: one row per datastore with service, team, classification, judgment-case flag, requested by (author of the commit that added the request file) and date, using git history.
 
+> **Deviation from this brief, taken during the build.** Phase 4 above says the apply workflow should regenerate the inventory and *commit it back to `main` with `[skip ci]`*. It does not. `main` is a protected branch, and giving CI a token that can push to it would hand every workflow run the ability to change the branch everyone else trusts — a larger hole than the inventory is worth, and one the MVP would have to undo in Production Readiness anyway. Instead the apply job **publishes the inventory as the run's job summary and uploads it as a workflow artifact** (retained 90 days), alongside the verification report. The inventory stays reproducible from the repository at any commit by running `inventory.py` locally, so nothing is lost except the committed copy. Revisit when there is a policy layer and a bot identity that can be scoped to one path.
+
 **Phase 6: Developer README.** `paths/compliant-datastore/README.md`, written for the Appointments engineer: how to request a datastore in under five minutes, what you get, what you can't change and why, how to find your secret, and how to remove the datastore.
 
 ## Out of scope for this path's MVP
