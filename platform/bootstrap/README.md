@@ -16,21 +16,55 @@ What it creates:
 
 ## Running it
 
+Requires Terraform >= 1.11 (see `.tool-versions` at the repository root).
+
+### The first time, in an account with no state bucket
+
+`versions.tf` configures an S3 backend pointing at a bucket **this
+configuration creates**. On a first run that bucket does not exist yet, so
+`terraform init` cannot succeed against it. Apply once with local state, then
+migrate:
+
 ```sh
 export AWS_PROFILE=meridian-sandbox
+
+# 1. Apply with local state. The backend block is temporarily out of the way.
+mv versions.tf versions.tf.disabled
+printf 'terraform {\n  required_version = ">= 1.11"\n  required_providers {\n    aws = { source = "hashicorp/aws", version = "~> 6.0" }\n  }\n}\n\nprovider "aws" {\n  region = var.region\n  default_tags { tags = { managed-by = "meridian-platform", path = "bootstrap" } }\n}\n' > versions.tf
 terraform init
-terraform plan      # read it
+terraform plan          # read it
+terraform apply
+
+# 2. Put the real file back and migrate the state into the bucket it created.
+mv -f versions.tf.disabled versions.tf
+terraform init -migrate-state \
+  -backend-config="bucket=$(terraform output -raw state_bucket_name)"
+```
+
+Terraform asks for confirmation before copying the local state; answer `yes`.
+Afterwards `terraform.tfstate` on disk is a leftover and can be deleted.
+
+### Every time after that
+
+```sh
+export AWS_PROFILE=meridian-sandbox
+terraform init -backend-config="bucket=meridian-platform-tfstate-<account-id>"
+terraform plan
 terraform apply
 ```
 
-Requires Terraform >= 1.10 (see `.tool-versions` at the repository root).
-
 ## State
 
-This directory keeps **local** state: it creates the bucket everything else
-stores state in, so it cannot store its own state there. `terraform.tfstate`
-stays on the machine that applied it and is gitignored. Later phases use the
-bucket with native S3 locking (`use_lockfile`), so there is no DynamoDB table.
+State lives in the bucket this configuration creates, under
+`platform/bootstrap/terraform.tfstate`, with native S3 locking
+(`use_lockfile`), so there is no DynamoDB table. The bucket name is
+account-specific and is passed with `-backend-config` rather than written into
+the repository.
+
+The one-time migration above is the price of the bootstrap creating its own
+backend. After it, the bootstrap and the path keep state in the same bucket
+under different keys, and nothing depends on a state file on one person's
+laptop.
 
 ## After applying
 

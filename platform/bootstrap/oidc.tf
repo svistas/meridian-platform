@@ -196,7 +196,10 @@ data "aws_iam_policy_document" "ci_apply_permissions" {
     }
   }
 
-  # The master password is managed by RDS in Secrets Manager.
+  # The master password is managed by RDS in Secrets Manager. CI creates and
+  # deletes the secret but never reads it: no secretsmanager:GetSecretValue,
+  # so no apply log can contain a database password. The developer reads it
+  # from Secrets Manager directly.
   statement {
     sid    = "ManagedMasterPassword"
     effect = "Allow"
@@ -204,7 +207,6 @@ data "aws_iam_policy_document" "ci_apply_permissions" {
       "secretsmanager:CreateSecret",
       "secretsmanager:DeleteSecret",
       "secretsmanager:DescribeSecret",
-      "secretsmanager:GetSecretValue",
       "secretsmanager:ListSecrets",
       "secretsmanager:TagResource",
       "secretsmanager:RotateSecret",
@@ -284,15 +286,20 @@ data "aws_iam_policy_document" "ci_apply_permissions" {
     }
   }
 
-  # Postgres logs exported to CloudWatch.
+  # Postgres logs exported to CloudWatch. The path owns the log groups, so it
+  # must be able to tear them down as well as create them.
   statement {
     sid    = "Logs"
     effect = "Allow"
     actions = [
       "logs:CreateLogGroup",
+      "logs:DeleteLogGroup",
       "logs:DescribeLogGroups",
       "logs:PutRetentionPolicy",
+      "logs:DeleteRetentionPolicy",
       "logs:TagResource",
+      "logs:UntagResource",
+      "logs:ListTagsForResource",
     ]
     resources = ["*"]
 
