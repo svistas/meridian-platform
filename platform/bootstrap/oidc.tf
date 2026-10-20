@@ -7,9 +7,15 @@
 # the apply role.
 
 resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = []
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+
+  # AWS no longer uses the thumbprint to validate GitHub's OIDC endpoint: it
+  # trusts the certificate chain instead, and populates this list itself. Left
+  # unmanaged, Terraform would try to delete AWS's value on every single plan.
+  lifecycle {
+    ignore_changes = [thumbprint_list]
+  }
 }
 
 locals {
