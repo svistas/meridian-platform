@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.health/platform/compliant-datastore/request.schema.json",
+  "title": "Compliant datastore request",
+  "description": "One file per datastore, in paths/compliant-datastore/requests/. The request says what the service is and what the data is; it cannot set encryption, backups, network exposure, logging or tags, which belong to the path.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "service",
+    "team",
+    "cost_center",
+    "environment",
+    "engine",
+    "size",
+    "classification",
+    "data_leaves_meridian"
+  ],
+  "properties": {
+    "service": {
+      "type": "string",
+      "description": "Lowercase, hyphen-separated. Must be a valid RDS identifier and match the file name.",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "team": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 1
+    },
+    "cost_center": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 1
+    },
+    "environment": {
+      "description": "sandbox is the only value allowed in the MVP.",
+      "enum": ["sandbox"]
+    },
+    "engine": {
+      "description": "postgres is the only engine in the MVP.",
+      "enum": ["postgres"]
+    },
+    "size": {
+      "description": "small -> db.t4g.micro/20GB, medium -> db.t4g.small/50GB.",
+      "enum": ["small", "medium"]
+    },
+    "classification": {
+      "description": "Recorded, and never a reason to build anything differently: every datastore gets PHI-grade defaults (ADR-0002). unsure is a judgment case.",
+      "enum": ["phi", "non-phi", "unsure"]
+    },
+    "data_leaves_meridian": {
+      "description": "\"no\", or the destination the data reaches, such as \"sms-vendor\". Anything other than \"no\" is a judgment case.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

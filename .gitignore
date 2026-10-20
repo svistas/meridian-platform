@@ -9,3 +9,8 @@ crash.log
 crash.*.log
 *.tfvars
 !*.tfvars.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
