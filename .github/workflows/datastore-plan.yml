@@ -1,0 +1,170 @@
+# Pull requests: validate the request files and show what would be built.
+#
+# pull_request, never pull_request_target: this workflow checks out the
+# contributor's code, so it must run with the untrusted token and the
+# read-only AWS role. pull_request_target would give it write access to the
+# repository and its secrets while running code from the branch.
+name: datastore plan
+
+on:
+  pull_request:
+    paths:
+      - 'paths/compliant-datastore/**'
+      - '.github/workflows/datastore-plan.yml'
+      - '.tool-versions'
+
+permissions:
+  id-token: write        # mint the OIDC token for AWS
+  contents: read         # check out the code
+  pull-requests: write   # post the plan comment
+  issues: write          # add the needs-security-review label
+
+concurrency:
+  group: datastore-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: validate and plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: paths/compliant-datastore
+
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Read the Terraform version from .tool-versions
+        id: tooling
+        working-directory: .
+        run: |
+          version="$(awk '$1 == "terraform" { print $2 }' .tool-versions)"
+          if [ -z "$version" ]; then
+            echo "no terraform entry in .tool-versions" >&2
+            exit 1
+          fi
+          echo "terraform=$version" >> "$GITHUB_OUTPUT"
+          echo "Terraform $version"
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate the request files
+        id: validate
+        run: |
+          # Capture the result but do not fail yet: the pull-request comment
+          # below is more useful than a bare red cross, so the job fails at
+          # the end instead.
+          set +e
+          python3 scripts/validate_requests.py | tee validation.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Run the unit tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ steps.tooling.outputs.terraform }}
+
+      - name: Assume the read-only plan role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: datastore-plan-${{ github.run_id }}
+
+      - name: terraform fmt
+        working-directory: paths/compliant-datastore/terraform
+        run: terraform fmt -check -recursive
+
+      - name: terraform init
+        working-directory: paths/compliant-datastore/terraform
+        run: terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform validate
+        working-directory: paths/compliant-datastore/terraform
+        run: terraform validate
+
+      - name: terraform plan
+        id: plan
+        working-directory: paths/compliant-datastore/terraform
+        env:
+          TF_VAR_kms_key_arn: ${{ vars.DATASTORE_KMS_KEY_ARN }}
+          TF_VAR_db_subnet_group_name: ${{ vars.DATASTORE_DB_SUBNET_GROUP_NAME }}
+          TF_VAR_vpc_id: ${{ vars.DATASTORE_VPC_ID }}
+          TF_VAR_region: ${{ vars.AWS_REGION }}
+        run: |
+          terraform plan -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
+          {
+            echo 'summary<<PLAN_EOF'
+            grep -E '^(Plan:|No changes)' plan.txt || echo 'Plan produced no summary line.'
+            echo 'PLAN_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on the pull request
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const read = (p) => { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return ''; } };
+
+            const validation = read('paths/compliant-datastore/validation.txt');
+            const plan = read('paths/compliant-datastore/terraform/plan.txt');
+            const planTail = plan.split('\n').slice(-60).join('\n');
+
+            const flagged = validation.includes('judgment case');
+
+            const body = [
+              '## Compliant datastore',
+              '',
+              '### Request validation',
+              '',
+              '```',
+              validation || 'no output',
+              '```',
+              '',
+              flagged
+                ? '> This pull request contains a **judgment case**. It is labelled `needs-security-review`. In the sandbox the merge is still allowed; a human from Security & Compliance decides.'
+                : '> No judgment cases.',
+              '',
+              '### Terraform plan',
+              '',
+              '```terraform',
+              planTail || 'no plan output',
+              '```',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const mine = comments.data.find(
+              (c) => c.user.type === 'Bot' && c.body.startsWith('## Compliant datastore')
+            );
+
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+            if (flagged) {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number, labels: ['needs-security-review'],
+              });
+            }
+
+      - name: Fail if the request files are invalid
+        if: steps.validate.outputs.exit_code != '0'
+        run: |
+          echo "validate_requests.py reported errors; see the comment above." >&2
+          exit 1
