@@ -89,6 +89,37 @@ class TestValidRequests(ValidatorCase):
         self.assertEqual(result.errors, [], f"real requests have errors: {result.errors}")
 
 
+class TestNoRequests(ValidatorCase):
+    """An empty path is a valid state: the MVP starts with no datastores."""
+
+    def test_empty_directory_is_valid(self):
+        result = self.run_validation()
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.flags, [])
+        self.assertTrue(result.ok)
+
+    def test_empty_directory_exits_zero(self):
+        self.assertEqual(v.main(["--requests", str(self.dir), "--schema", str(SCHEMA)]), 0)
+
+    def test_only_a_gitkeep_is_still_empty(self):
+        """requests/.gitkeep keeps the folder in git and must be ignored."""
+        (self.dir / ".gitkeep").write_text("")
+        result = self.run_validation()
+        self.assertEqual(result.errors, [])
+        self.assertTrue(result.ok)
+
+    def test_json_output_on_an_empty_directory(self):
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = v.main(["--requests", str(self.dir), "--schema", str(SCHEMA), "--json"])
+        payload = json.loads(buffer.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(payload, {"errors": [], "flags": []})
+
+
 class TestJudgmentCases(ValidatorCase):
     def test_unsure_classification_is_flagged_but_not_an_error(self):
         self.write("care-notes.yaml", request_text(service="care-notes", classification="unsure"))
@@ -340,6 +371,78 @@ class TestRdsIdentifierRules(unittest.TestCase):
                 any("cannot be a database identifier" in e for e in result.errors),
                 result.errors,
             )
+
+
+class TestWorkflowLabelDecision(ValidatorCase):
+    """The contract datastore-plan.yml relies on to add or remove the label.
+
+    The workflow decides with `flags.length > 0` over the --json output. It
+    used to decide with `validation.includes('judgment case')` over the
+    human-readable output, which labelled every clean pull request, because
+    the success line reads "All requests valid, no judgment cases." and
+    contains that substring. These tests keep both halves honest.
+    """
+
+    def report(self) -> dict:
+        """What the workflow parses out of validation.json."""
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            v.main(["--requests", str(self.dir), "--schema", str(SCHEMA), "--json"])
+        return json.loads(buffer.getvalue())
+
+    def human_output(self) -> str:
+        """What the workflow shows a person, and must never branch on."""
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            v.main(["--requests", str(self.dir), "--schema", str(SCHEMA)])
+        return buffer.getvalue()
+
+    def labelled(self) -> bool:
+        """The workflow's rule, in Python."""
+        return len(self.report()["flags"]) > 0
+
+    def test_no_requests_means_no_label(self):
+        self.assertFalse(self.labelled())
+
+    def test_a_clean_request_means_no_label(self):
+        self.write("appointment-reminders.yaml", VALID)
+        self.assertFalse(self.labelled())
+
+    def test_an_unsure_request_means_a_label(self):
+        self.write("care-notes.yaml", request_text(service="care-notes", classification="unsure"))
+        self.assertTrue(self.labelled())
+
+    def test_a_destination_means_a_label(self):
+        self.write(
+            "care-notes.yaml",
+            request_text(service="care-notes", data_leaves_meridian='"sms-vendor"'),
+        )
+        self.assertTrue(self.labelled())
+
+    def test_removing_the_judgment_case_clears_the_label(self):
+        """A later push can make a flagged pull request clean again."""
+        path = self.write(
+            "care-notes.yaml", request_text(service="care-notes", classification="unsure")
+        )
+        self.assertTrue(self.labelled())
+        path.write_text(request_text(service="care-notes", classification="phi"))
+        self.assertFalse(self.labelled())
+
+    def test_the_human_output_is_not_safe_to_branch_on(self):
+        """The exact trap the old code fell into. Do not 'fix' this test."""
+        self.write("appointment-reminders.yaml", VALID)
+        clean = self.human_output()
+        self.assertIn("no judgment cases", clean)
+        # The substring the old code looked for is present even when there is
+        # nothing to flag, which is why the decision moved to JSON.
+        self.assertIn("judgment case", clean)
+        self.assertFalse(self.labelled())
 
 
 class TestExitStatus(ValidatorCase):

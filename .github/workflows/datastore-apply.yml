@@ -1,0 +1,125 @@
+# Merges to main: build what the request files describe, then prove it.
+name: datastore apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'paths/compliant-datastore/**'
+      - '.github/workflows/datastore-apply.yml'
+      - '.tool-versions'
+
+permissions:
+  id-token: write
+  contents: read
+
+# Two applies must never run at once: they would fight over the state lock and
+# one of them would wait and then act on a stale plan. Queue instead, and never
+# cancel an apply half way through.
+concurrency:
+  group: datastore-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: apply, verify and inventory
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: paths/compliant-datastore
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # inventory.py reads the commit that added each request file.
+          fetch-depth: 0
+
+      - name: Read the Terraform version from .tool-versions
+        id: tooling
+        working-directory: .
+        run: |
+          version="$(awk '$1 == "terraform" { print $2 }' .tool-versions)"
+          if [ -z "$version" ]; then
+            echo "no terraform entry in .tool-versions" >&2
+            exit 1
+          fi
+          echo "terraform=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate the request files
+        run: python3 scripts/validate_requests.py
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ steps.tooling.outputs.terraform }}
+
+      - name: Assume the apply role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: datastore-apply-${{ github.run_id }}
+
+      - name: terraform init
+        working-directory: paths/compliant-datastore/terraform
+        run: terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform apply
+        working-directory: paths/compliant-datastore/terraform
+        env:
+          TF_VAR_kms_key_arn: ${{ vars.DATASTORE_KMS_KEY_ARN }}
+          TF_VAR_db_subnet_group_name: ${{ vars.DATASTORE_DB_SUBNET_GROUP_NAME }}
+          TF_VAR_vpc_id: ${{ vars.DATASTORE_VPC_ID }}
+          TF_VAR_region: ${{ vars.AWS_REGION }}
+        run: terraform apply -auto-approve -no-color -lock-timeout=10m
+
+      # The guarantee is only real if it can be read back from AWS. This step
+      # fails the job if any row of the guarantee table fails for any
+      # datastore.
+      - name: Verify the guarantee
+        run: |
+          python3 scripts/verify_guarantee.py \
+            --region "${{ vars.AWS_REGION }}" \
+            --kms-key-arn "${{ vars.DATASTORE_KMS_KEY_ARN }}" \
+            --markdown verification.md
+
+      - name: Publish the verification report
+        if: always()
+        run: cat verification.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      # The brief asks for the inventory to be committed back to main. main is
+      # a protected branch, so CI publishes it instead; see the deviation note
+      # in the build brief.
+      - name: Build the inventory
+        if: always()
+        working-directory: .
+        run: |
+          python3 paths/compliant-datastore/scripts/inventory.py \
+            --repo-root . --output inventory/datastores.md
+          {
+            echo ''
+            echo '---'
+            echo ''
+            cat inventory/datastores.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the inventory and verification report
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: datastore-inventory-${{ github.run_number }}
+          path: |
+            inventory/datastores.md
+            paths/compliant-datastore/verification.md
+          if-no-files-found: warn
+          retention-days: 90
