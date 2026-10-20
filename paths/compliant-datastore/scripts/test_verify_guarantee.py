@@ -144,6 +144,32 @@ class TestDataLeavesTagNormalisation(unittest.TestCase):
         self.assertEqual(g.normalise_leaves("sms-vendor"), "sms-vendor")
 
 
+class TestNoRequests(unittest.TestCase):
+    """With no requests, verification must not even reach for boto3."""
+
+    def test_empty_directory_returns_no_checks(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            checks = g.verify(pathlib.Path(tmp), "eu-west-1", KEY)
+        self.assertEqual(checks, [])
+
+    def test_only_a_gitkeep_returns_no_checks(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / ".gitkeep").write_text("")
+            self.assertEqual(g.verify(d, "eu-west-1", KEY), [])
+
+    def test_main_exits_zero_with_no_requests(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            code = g.main(["--requests", tmp, "--kms-key-arn", KEY, "--region", "eu-west-1"])
+        self.assertEqual(code, 0)
+
+
 class TestMarkdownReport(unittest.TestCase):
     def test_passing_report_says_so(self):
         checks = g.check_instance("appointment-reminders", compliant_instance(), KEY, REQUEST)

@@ -89,6 +89,37 @@ class TestValidRequests(ValidatorCase):
         self.assertEqual(result.errors, [], f"real requests have errors: {result.errors}")
 
 
+class TestNoRequests(ValidatorCase):
+    """An empty path is a valid state: the MVP starts with no datastores."""
+
+    def test_empty_directory_is_valid(self):
+        result = self.run_validation()
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.flags, [])
+        self.assertTrue(result.ok)
+
+    def test_empty_directory_exits_zero(self):
+        self.assertEqual(v.main(["--requests", str(self.dir), "--schema", str(SCHEMA)]), 0)
+
+    def test_only_a_gitkeep_is_still_empty(self):
+        """requests/.gitkeep keeps the folder in git and must be ignored."""
+        (self.dir / ".gitkeep").write_text("")
+        result = self.run_validation()
+        self.assertEqual(result.errors, [])
+        self.assertTrue(result.ok)
+
+    def test_json_output_on_an_empty_directory(self):
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = v.main(["--requests", str(self.dir), "--schema", str(SCHEMA), "--json"])
+        payload = json.loads(buffer.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(payload, {"errors": [], "flags": []})
+
+
 class TestJudgmentCases(ValidatorCase):
     def test_unsure_classification_is_flagged_but_not_an_error(self):
         self.write("care-notes.yaml", request_text(service="care-notes", classification="unsure"))

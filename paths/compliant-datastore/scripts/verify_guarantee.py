@@ -190,13 +190,19 @@ def check_log_groups(service: str, logs) -> list[Check]:
 
 
 def verify(requests_dir: pathlib.Path, region: str, expected_kms: str) -> list[Check]:
+    paths = sorted(requests_dir.glob("*.yaml"))
+    if not paths:
+        # Nothing was requested, so there is nothing to verify and no reason to
+        # talk to AWS at all. An empty path is a valid state, not a failure.
+        return []
+
     import boto3
 
     rds = boto3.client("rds", region_name=region)
     logs = boto3.client("logs", region_name=region)
 
     checks: list[Check] = []
-    for path in sorted(requests_dir.glob("*.yaml")):
+    for path in paths:
         request = yaml.safe_load(path.read_text())
         service = request["service"]
 

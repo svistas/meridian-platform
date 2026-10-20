@@ -104,9 +104,23 @@ jobs:
           TF_VAR_region: ${{ vars.AWS_REGION }}
         run: |
           terraform plan -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
+
+          # Terraform prints one of three things: a "Plan:" line, "No changes",
+          # or -- when only outputs differ, which is what an empty requests
+          # folder looks like -- neither of them.
+          if grep -qE '^Plan:' plan.txt; then
+            summary="$(grep -E '^Plan:' plan.txt | head -1)"
+          elif grep -q '^No changes' plan.txt; then
+            summary='No changes. Infrastructure matches the configuration.'
+          elif grep -q '^Changes to Outputs' plan.txt; then
+            summary='No infrastructure changes; only Terraform outputs would be updated.'
+          else
+            summary='Plan produced no summary line.'
+          fi
+          echo "$summary"
           {
             echo 'summary<<PLAN_EOF'
-            grep -E '^(Plan:|No changes)' plan.txt || echo 'Plan produced no summary line.'
+            echo "$summary"
             echo 'PLAN_EOF'
           } >> "$GITHUB_OUTPUT"
 
@@ -137,6 +151,8 @@ jobs:
                 : '> No judgment cases.',
               '',
               '### Terraform plan',
+              '',
+              `**${{ steps.plan.outputs.summary }}**`,
               '',
               '```terraform',
               planTail || 'no plan output',

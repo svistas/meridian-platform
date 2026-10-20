@@ -66,6 +66,34 @@ class TestRender(unittest.TestCase):
         self.assertIn("`b`", out)
 
 
+class TestNoRequests(unittest.TestCase):
+    def test_collect_on_an_empty_directory(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(inv.collect(pathlib.Path(tmp), pathlib.Path(tmp)), [])
+
+    def test_gitkeep_is_not_a_datastore(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / ".gitkeep").write_text("")
+            self.assertEqual(inv.collect(d, d), [])
+
+    def test_main_writes_an_empty_inventory_and_exits_zero(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            requests = d / "requests"
+            requests.mkdir()
+            out = d / "inventory" / "datastores.md"
+            code = inv.main(["--requests", str(requests), "--output", str(out), "--repo-root", str(d)])
+            self.assertEqual(code, 0)
+            self.assertIn("No datastores", out.read_text())
+
+
 class TestGitAttribution(unittest.TestCase):
     """Requested-by comes from the commit that added the file."""
 
