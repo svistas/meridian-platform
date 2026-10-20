@@ -35,24 +35,45 @@
     },
     "environment": {
       "description": "sandbox is the only value allowed in the MVP.",
-      "enum": ["sandbox"]
+      "enum": [
+        "sandbox"
+      ]
     },
     "engine": {
       "description": "postgres is the only engine in the MVP.",
-      "enum": ["postgres"]
+      "enum": [
+        "postgres"
+      ]
     },
     "size": {
       "description": "small -> db.t4g.micro/20GB, medium -> db.t4g.small/50GB.",
-      "enum": ["small", "medium"]
+      "enum": [
+        "small",
+        "medium"
+      ]
     },
     "classification": {
       "description": "Recorded, and never a reason to build anything differently: every datastore gets PHI-grade defaults (ADR-0002). unsure is a judgment case.",
-      "enum": ["phi", "non-phi", "unsure"]
+      "enum": [
+        "phi",
+        "non-phi",
+        "unsure"
+      ]
     },
     "data_leaves_meridian": {
-      "description": "\"no\", or the destination the data reaches, such as \"sms-vendor\". Anything other than \"no\" is a judgment case.",
-      "type": "string",
-      "minLength": 1
+      "description": "Where the data goes. Say no with the string \"no\" (any case) or the YAML boolean false; both are normalised to \"no\". Otherwise name the destination in lowercase with hyphens, such as \"sms-vendor\". Any destination is a judgment case.",
+      "oneOf": [
+        {
+          "type": "boolean",
+          "const": false,
+          "description": "YAML false, meaning the data does not leave Meridian."
+        },
+        {
+          "type": "string",
+          "pattern": "^([Nn][Oo]|[a-z][a-z0-9-]*)$",
+          "description": "\"no\" in any case, or a destination name."
+        }
+      ]
     }
   }
 }

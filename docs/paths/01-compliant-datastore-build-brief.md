@@ -44,7 +44,7 @@ environment: sandbox                 # only value allowed in the MVP
 engine: postgres                     # only value allowed in the MVP
 size: small                          # small | medium
 classification: phi                  # phi | non-phi | unsure
-data_leaves_meridian: "no"           # "no", or a destination such as "sms-vendor"
+data_leaves_meridian: "no"           # "no" (any case) or false, or a destination such as "sms-vendor"
 ```
 
 All fields are required. The request **cannot** set encryption, backups, network exposure, logging or tags. Those belong to the path.
@@ -69,7 +69,7 @@ Size mapping: `small` → `db.t4g.micro`, 20 GB; `medium` → `db.t4g.small`, 50
 
 ## Judgment cases
 
-`validate_requests.py` flags a request when `classification` is `unsure` or `data_leaves_meridian` is not `"no"`. The pull request gets the label `needs-security-review` and a comment explaining why. In the MVP sandbox, the merge is still allowed; the flag is what we're testing.
+`validate_requests.py` flags a request when `classification` is `unsure` or `data_leaves_meridian` names a destination. "No" is accepted as the string `"no"` in any case or the YAML boolean `false` (an unquoted `no` parses as `false`), all normalised to `no`; anything else must be a lowercase destination name such as `sms-vendor`, and a value like `"SMS Vendor"` is a plain error rather than a flag. The pull request gets the label `needs-security-review` and a comment explaining why. In the MVP sandbox, the merge is still allowed; the flag is what we're testing.
 
 ## Phases (one commit each; stop after each phase for review)
 

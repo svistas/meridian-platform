@@ -12,6 +12,14 @@ locals {
     for file in local.request_files :
     trimsuffix(file, ".yaml") => yamldecode(file("${path.module}/../requests/${file}"))
   }
+
+  # YAML turns an unquoted `no` into the boolean false, so the same answer can
+  # arrive as "no", "No" or false. Normalise it the way validate_requests.py
+  # does, or the tag would read "false" for half the requests.
+  data_leaves_meridian = {
+    for name, request in local.requests :
+    name => contains(["no", "false"], lower(tostring(request.data_leaves_meridian))) ? "no" : lower(tostring(request.data_leaves_meridian))
+  }
 }
 
 module "postgres" {
@@ -24,7 +32,7 @@ module "postgres" {
   cost_center          = each.value.cost_center
   classification       = each.value.classification
   size                 = each.value.size
-  data_leaves_meridian = each.value.data_leaves_meridian
+  data_leaves_meridian = local.data_leaves_meridian[each.key]
 
   # From the bootstrap.
   kms_key_arn          = var.kms_key_arn

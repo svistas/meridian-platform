@@ -38,6 +38,16 @@ DEFAULT_SCHEMA = HERE.parent / "schema" / "request.schema.json"
 RDS_IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 RDS_IDENTIFIER_MAX = 63
 
+# A destination name: lowercase letters, digits and hyphens, like "sms-vendor".
+# Case is not forgiven here, unlike "no": a destination is a name that has to
+# match what appears in the inventory and in Security's records.
+DESTINATION = re.compile(r"^[a-z][a-z0-9-]*$")
+
+# The ways a request can say "the data stays inside Meridian". YAML turns an
+# unquoted `no` into the boolean False, so both spellings arrive here and both
+# mean the same thing.
+NO_SPELLINGS = {"no", "false"}
+
 
 @dataclass
 class Result:
@@ -66,6 +76,50 @@ def rds_identifier_problem(service: str) -> str | None:
     return None
 
 
+def normalise_data_leaves(value) -> str | None:
+    """The canonical form of data_leaves_meridian, or None if it is unusable.
+
+    Accepts the string "no" in any case, the YAML boolean false (which is what
+    an unquoted `no` becomes), and a destination name. Everything is lowered,
+    so "No", "NO" and false all come back as "no".
+    """
+    if isinstance(value, bool):
+        # `data_leaves_meridian: no` and `: false` both parse as False.
+        return "no" if value is False else None
+    if not isinstance(value, str):
+        return None
+
+    stripped = value.strip()
+    if stripped.lower() in NO_SPELLINGS:
+        return "no"
+    if DESTINATION.match(stripped):
+        return stripped
+    return None
+
+
+def data_leaves_problem(value) -> str | None:
+    """Why this data_leaves_meridian value cannot be used, in plain language."""
+    if normalise_data_leaves(value) is not None:
+        return None
+
+    if isinstance(value, bool):
+        # Only `true` reaches here.
+        return (
+            "is 'true', which does not say anything. Write 'no' if the data "
+            "stays inside Meridian, or name where it goes, like 'sms-vendor'"
+        )
+    if not isinstance(value, str):
+        return (
+            f"is a {type(value).__name__}. Write 'no' if the data stays inside "
+            f"Meridian, or name where it goes, like 'sms-vendor'"
+        )
+    return (
+        f"is '{value}'. Write 'no' if the data stays inside Meridian, or name "
+        f"the destination in lowercase with hyphens and no spaces, like "
+        f"'sms-vendor'"
+    )
+
+
 def judgment_cases(request: dict) -> list[str]:
     """Reasons this request needs a human from Security, in plain language."""
     reasons = []
@@ -74,7 +128,7 @@ def judgment_cases(request: dict) -> list[str]:
             "classification is 'unsure': someone has to decide whether this "
             "holds patient data before it is used"
         )
-    leaves = request.get("data_leaves_meridian")
+    leaves = normalise_data_leaves(request.get("data_leaves_meridian"))
     if leaves is not None and leaves != "no":
         reasons.append(
             f"data leaves Meridian to '{leaves}': the destination needs a "
@@ -100,6 +154,10 @@ def validate_file(path: pathlib.Path, validator: Draft202012Validator) -> Result
 
     for error in sorted(validator.iter_errors(raw), key=lambda e: list(e.path)):
         where = ".".join(str(p) for p in error.path) or "(top level)"
+        if where == "data_leaves_meridian":
+            # Checked below, where the message can say what to do instead of
+            # quoting a regular expression at the developer.
+            continue
         result.errors.append(f"{path.name}: {where}: {error.message}")
 
     service = raw.get("service")
@@ -118,6 +176,11 @@ def validate_file(path: pathlib.Path, validator: Draft202012Validator) -> Result
                 f"{path.name}: service '{service}' cannot be a database "
                 f"identifier: it {problem}"
             )
+
+    if "data_leaves_meridian" in raw:
+        problem = data_leaves_problem(raw["data_leaves_meridian"])
+        if problem:
+            result.errors.append(f"{path.name}: data_leaves_meridian {problem}")
 
     for reason in judgment_cases(raw):
         result.flags.append(f"{path.name}: {reason}")

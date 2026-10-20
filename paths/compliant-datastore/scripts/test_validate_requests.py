@@ -126,6 +126,91 @@ class TestJudgmentCases(ValidatorCase):
         self.assertEqual(self.run_validation().flags, [])
 
 
+class TestDataLeavesMeridian(ValidatorCase):
+    """"no" has several spellings, and YAML turns an unquoted no into False."""
+
+    def assert_clean(self, value: str):
+        self.write("care-notes.yaml", request_text(service="care-notes", data_leaves_meridian=value))
+        result = self.run_validation()
+        self.assertEqual(result.errors, [], f"{value!r} should be valid")
+        self.assertEqual(result.flags, [], f"{value!r} should not be a judgment case")
+
+    def test_unquoted_no_is_accepted(self):
+        """YAML parses an unquoted no as the boolean False."""
+        self.assert_clean("no")
+
+    def test_quoted_no_is_accepted(self):
+        self.assert_clean('"no"')
+
+    def test_capital_no_is_accepted(self):
+        self.assert_clean('"No"')
+
+    def test_shouting_no_is_accepted(self):
+        self.assert_clean('"NO"')
+
+    def test_yaml_false_is_accepted(self):
+        self.assert_clean("false")
+
+    def test_all_spellings_normalise_to_no(self):
+        for raw in [False, "no", "No", "NO", " no ", "false", "False"]:
+            with self.subTest(raw=raw):
+                self.assertEqual(v.normalise_data_leaves(raw), "no")
+
+    def test_destination_is_a_judgment_case_not_an_error(self):
+        self.write(
+            "care-notes.yaml",
+            request_text(service="care-notes", data_leaves_meridian='"sms-vendor"'),
+        )
+        result = self.run_validation()
+        self.assertEqual(result.errors, [])
+        self.assertTrue(result.ok)
+        self.assertEqual(len(result.flags), 1)
+        self.assertIn("sms-vendor", result.flags[0])
+
+    def test_destination_with_spaces_is_an_error_in_plain_language(self):
+        self.write(
+            "care-notes.yaml",
+            request_text(service="care-notes", data_leaves_meridian='"SMS Vendor"'),
+        )
+        result = self.run_validation()
+        self.assertFalse(result.ok)
+        message = next(e for e in result.errors if "data_leaves_meridian" in e)
+        # Plain language: says what to write, and does not quote a regex.
+        self.assertIn("SMS Vendor", message)
+        self.assertIn("sms-vendor", message)
+        self.assertNotIn("^", message)
+        self.assertNotIn("does not match", message)
+
+    def test_only_one_error_for_a_bad_destination(self):
+        """The schema and the script must not both complain."""
+        self.write(
+            "care-notes.yaml",
+            request_text(service="care-notes", data_leaves_meridian='"SMS Vendor"'),
+        )
+        errors = [e for e in self.run_validation().errors if "data_leaves_meridian" in e]
+        self.assertEqual(len(errors), 1, errors)
+
+    def test_true_is_an_error(self):
+        self.write("care-notes.yaml", request_text(service="care-notes", data_leaves_meridian="true"))
+        result = self.run_validation()
+        self.assertFalse(result.ok)
+        self.assertTrue(
+            any("does not say anything" in e for e in result.errors), result.errors
+        )
+
+    def test_uppercase_destination_is_rejected(self):
+        self.write(
+            "care-notes.yaml",
+            request_text(service="care-notes", data_leaves_meridian='"SMS-VENDOR"'),
+        )
+        self.assertFalse(self.run_validation().ok)
+
+    def test_normalise_rejects_unusable_values(self):
+        for raw in [True, "SMS Vendor", "sms vendor", "-leading", "SMS-VENDOR", 42, None]:
+            with self.subTest(raw=raw):
+                self.assertIsNone(v.normalise_data_leaves(raw))
+
+
 class TestInvalidRequests(ValidatorCase):
     def test_missing_required_field(self):
         self.write("care-notes.yaml", request_text(service="care-notes", cost_center=None))
