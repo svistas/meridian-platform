@@ -1,0 +1,5 @@
+# Pinned so CI and a laptop run the same code.
+# Used by scripts/validate_requests.py, verify_guarantee.py and inventory.py.
+boto3==1.43.115
+jsonschema==4.26.0
+PyYAML==6.0.3
