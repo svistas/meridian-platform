@@ -9,6 +9,22 @@
 No workflow uses `pull_request_target`, no workflow stores an AWS key, and
 every third-party action is pinned to a full commit SHA.
 
+## How the judgment-case label is decided
+
+`datastore-plan.yml` runs `validate_requests.py` twice: once for people and
+once with `--json`. The label is added or removed on `flags.length > 0` from
+the JSON, never on the prose.
+
+This matters because the clean message is *"All requests valid, no judgment
+cases."* — which contains the substring `judgment case`. The first version of
+the workflow tested for that substring and labelled every clean pull request.
+`TestWorkflowLabelDecision` in `scripts/test_validate_requests.py` pins both
+halves: that the rule gives the right answer, and that the human-readable text
+is genuinely unsafe to branch on.
+
+When a push removes the last judgment case, the workflow takes the label off
+again, ignoring a 404 if it was never there.
+
 ## Repository variables to create
 
 These are **variables, not secrets**: a role ARN, a bucket name and a few

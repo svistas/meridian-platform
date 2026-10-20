@@ -373,6 +373,78 @@ class TestRdsIdentifierRules(unittest.TestCase):
             )
 
 
+class TestWorkflowLabelDecision(ValidatorCase):
+    """The contract datastore-plan.yml relies on to add or remove the label.
+
+    The workflow decides with `flags.length > 0` over the --json output. It
+    used to decide with `validation.includes('judgment case')` over the
+    human-readable output, which labelled every clean pull request, because
+    the success line reads "All requests valid, no judgment cases." and
+    contains that substring. These tests keep both halves honest.
+    """
+
+    def report(self) -> dict:
+        """What the workflow parses out of validation.json."""
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            v.main(["--requests", str(self.dir), "--schema", str(SCHEMA), "--json"])
+        return json.loads(buffer.getvalue())
+
+    def human_output(self) -> str:
+        """What the workflow shows a person, and must never branch on."""
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            v.main(["--requests", str(self.dir), "--schema", str(SCHEMA)])
+        return buffer.getvalue()
+
+    def labelled(self) -> bool:
+        """The workflow's rule, in Python."""
+        return len(self.report()["flags"]) > 0
+
+    def test_no_requests_means_no_label(self):
+        self.assertFalse(self.labelled())
+
+    def test_a_clean_request_means_no_label(self):
+        self.write("appointment-reminders.yaml", VALID)
+        self.assertFalse(self.labelled())
+
+    def test_an_unsure_request_means_a_label(self):
+        self.write("care-notes.yaml", request_text(service="care-notes", classification="unsure"))
+        self.assertTrue(self.labelled())
+
+    def test_a_destination_means_a_label(self):
+        self.write(
+            "care-notes.yaml",
+            request_text(service="care-notes", data_leaves_meridian='"sms-vendor"'),
+        )
+        self.assertTrue(self.labelled())
+
+    def test_removing_the_judgment_case_clears_the_label(self):
+        """A later push can make a flagged pull request clean again."""
+        path = self.write(
+            "care-notes.yaml", request_text(service="care-notes", classification="unsure")
+        )
+        self.assertTrue(self.labelled())
+        path.write_text(request_text(service="care-notes", classification="phi"))
+        self.assertFalse(self.labelled())
+
+    def test_the_human_output_is_not_safe_to_branch_on(self):
+        """The exact trap the old code fell into. Do not 'fix' this test."""
+        self.write("appointment-reminders.yaml", VALID)
+        clean = self.human_output()
+        self.assertIn("no judgment cases", clean)
+        # The substring the old code looked for is present even when there is
+        # nothing to flag, which is why the decision moved to JSON.
+        self.assertIn("judgment case", clean)
+        self.assertFalse(self.labelled())
+
+
 class TestExitStatus(ValidatorCase):
     def test_exit_zero_when_valid(self):
         self.write("appointment-reminders.yaml", VALID)

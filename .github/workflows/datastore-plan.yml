@@ -64,8 +64,14 @@ jobs:
           set +e
           python3 scripts/validate_requests.py | tee validation.txt
           code=${PIPESTATUS[0]}
+          # The same run again as JSON. Everything that decides what the
+          # workflow DOES reads this file; validation.txt is only ever shown
+          # to a person.
+          python3 scripts/validate_requests.py --json > validation.json
           set -e
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          echo '--- validation.json ---'
+          cat validation.json
 
       - name: Run the unit tests
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
@@ -135,7 +141,12 @@ jobs:
             const plan = read('paths/compliant-datastore/terraform/plan.txt');
             const planTail = plan.split('\n').slice(-60).join('\n');
 
-            const flagged = validation.includes('judgment case');
+            // Decide from the machine-readable output, never from the prose.
+            // The success line is "All requests valid, no judgment cases.",
+            // which contains the substring "judgment case" -- branching on
+            // that text labelled every clean pull request.
+            const report = JSON.parse(read('paths/compliant-datastore/validation.json') || '{"errors":[],"flags":[]}');
+            const flagged = report.flags.length > 0;
 
             const body = [
               '## Compliant datastore',
@@ -173,10 +184,21 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
 
+            const LABEL = 'needs-security-review';
+
             if (flagged) {
               await github.rest.issues.addLabels({
-                owner, repo, issue_number, labels: ['needs-security-review'],
+                owner, repo, issue_number, labels: [LABEL],
               });
+            } else {
+              // A judgment case may have been removed by a later push. Take
+              // the label off again rather than leaving a stale warning on a
+              // pull request that no longer needs one.
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: LABEL });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
             }
 
       - name: Fail if the request files are invalid
