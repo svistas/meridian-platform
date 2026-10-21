@@ -244,12 +244,12 @@ data "aws_iam_policy_document" "ci_apply_permissions" {
     }
   }
 
-  # Encryption with the platform key only.
+  # Using a key -- encrypting, decrypting, deriving data keys -- is allowed on
+  # the platform key and nothing else.
   statement {
     sid    = "PlatformKey"
     effect = "Allow"
     actions = [
-      "kms:DescribeKey",
       "kms:Encrypt",
       "kms:Decrypt",
       "kms:ReEncrypt*",
@@ -273,10 +273,25 @@ data "aws_iam_policy_document" "ci_apply_permissions" {
     }
   }
 
+  # Reading key metadata is separate, and deliberately not limited to the
+  # platform key.
+  #
+  # Even though a datastore's master-password secret is encrypted with the
+  # platform key, RDS inspects the account's default Secrets Manager key
+  # (alias/aws/secretsmanager) during CreateDBInstance. With DescribeKey scoped
+  # to the platform key that call was denied, and RDS reports any denied KMS
+  # call as the unhelpfully vague KMSKeyNotAccessibleFault.
+  #
+  # DescribeKey and ListAliases return metadata only: no plaintext, and no
+  # ability to encrypt or decrypt with a key. Every action that actually uses a
+  # key stays pinned to the platform key above.
   statement {
-    sid       = "ReadKeyAliases"
-    effect    = "Allow"
-    actions   = ["kms:ListAliases"]
+    sid    = "ReadKeyMetadata"
+    effect = "Allow"
+    actions = [
+      "kms:DescribeKey",
+      "kms:ListAliases",
+    ]
     resources = ["*"]
 
     condition {

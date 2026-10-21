@@ -55,6 +55,14 @@ The name-only spelling was **not** kept as an accepted alternative. Accepting it
 
 This is also a note about method: no amount of reading the YAML, pinning actions or unit testing would have found this. It took one real run.
 
+### Update, 2026-10-21: key metadata is readable account-wide
+
+The first apply failed with `KMSKeyNotAccessibleFault` on `CreateDBInstance`. CloudTrail named the real call: `kms:DescribeKey` denied on `alias/aws/secretsmanager`, invoked by `rds.amazonaws.com`. RDS inspects the account's default Secrets Manager key while setting up a managed master password, even when the secret is encrypted with our own key, and reports any denied KMS call as that one vague fault.
+
+`kms:DescribeKey` moved out of the platform-key statement into a `ReadKeyMetadata` statement over `*`, region-fenced, alongside `kms:ListAliases`. Both return metadata only. Every action that uses a key -- `Encrypt`, `Decrypt`, `GenerateDataKey*`, `ReEncrypt*`, `CreateGrant` -- stays pinned to the platform key ARN, so the blast radius is unchanged in practice.
+
+A CloudTrail sweep of the whole failed run found this was the only denial, so the fix is one statement rather than a sequence of guesses.
+
 ### Confirmation
 
 The phase 4 workflows reference the two roles by separate repository variables. A pull request that tries to apply fails at the AWS API, not at a check inside the workflow.
