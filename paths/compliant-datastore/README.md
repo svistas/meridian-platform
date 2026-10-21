@@ -38,7 +38,22 @@ The file name must match `service`. All eight fields are required.
 | `classification` | `phi`, `non-phi` or `unsure` |
 | `data_leaves_meridian` | `"no"` (any case, or the YAML `false`), or the destination, like `"sms-vendor"` |
 
-Removing the file and merging destroys the database.
+Removing the file and merging destroys the database. Read
+[Removing a datastore](#removing-a-datastore) before you do that.
+
+## What to expect
+
+| | |
+|---|---|
+| You open the pull request | Checks run in about a minute: your request file is validated, and you get a comment showing what would be built |
+| It is reviewed and merged | The database is created |
+| **About 10 to 15 minutes after the merge** | The database is ready and every guarantee has been verified |
+
+Most of that time is AWS creating the instance; nothing is waiting on a person.
+Watch the Actions tab for the `datastore apply` run that starts on merge.
+
+If a check fails, read the comment on your pull request first: validation
+errors say what to write instead.
 
 ## What you get, whatever you asked for
 
@@ -86,6 +101,74 @@ aws secretsmanager get-secret-value \
       --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text)" \
   --query SecretString --output text
 ```
+
+## Connecting
+
+You need two things: the endpoint and the password.
+
+**The endpoint.** Two places, whichever is quicker:
+
+- The `datastore apply` run in the **Actions** tab. Its summary lists every
+  datastore, and the inventory is attached to the run as an artifact.
+- The **AWS console**, under RDS → Databases → your service name. Or:
+
+```sh
+aws rds describe-db-instances \
+  --db-instance-identifier appointment-reminders \
+  --query 'DBInstances[0].Endpoint.{host:Address,port:Port}'
+```
+
+The password is in Secrets Manager — see [Finding your
+password](#finding-your-password) above.
+
+**TLS is required.** The database refuses connections that are not encrypted
+(`rds.force_ssl = 1`), so a client that does not ask for TLS fails to connect
+rather than quietly falling back. Set `sslmode=require`:
+
+```
+postgresql://meridian:<password>@<host>:5432/appointment_reminders?sslmode=require
+```
+
+```sh
+psql "host=<host> port=5432 dbname=appointment_reminders user=meridian sslmode=require"
+```
+
+The database name is your service name with hyphens turned into underscores,
+so `appointment-reminders` holds a database called `appointment_reminders`.
+
+**The database is not reachable from the internet, or from your laptop.** It
+sits in private subnets with no inbound rule, which is the point. Connecting a
+running service to it is path 02's job.
+
+## Removing a datastore
+
+Delete your request file and merge.
+
+> **The database is destroyed immediately, and the data is gone.**
+>
+> In the sandbox there is no deletion protection and **no final snapshot**:
+> when the apply runs, the instance is deleted and nothing is kept. There is
+> no undo, and nobody can restore it for you. The automated backups go with
+> the instance.
+>
+> If there is anything in the database you want, take a copy **before** you
+> merge the removal.
+
+This is deliberate for a sandbox holding synthetic data, where leaving
+databases running costs money and the teardown habit matters. A production
+version of this path would not behave this way.
+
+## Getting help
+
+Open an issue on this repository with the label **`path:compliant-datastore`**.
+
+Useful things to include: your service name, a link to the pull request, and
+the failing run. If a check failed, the comment on your pull request usually
+says what to change.
+
+Questions about whether your data is PHI are not for the platform team: mark
+the request `classification: unsure`, which flags it for Security & Compliance
+to decide.
 
 ## Checking it yourself
 
