@@ -1,0 +1,27 @@
+# Keep the pinned action SHAs current.
+#
+# Every action in .github/workflows/ is pinned to a full commit SHA, which is
+# good for supply-chain safety and bad for staying up to date: a pinned SHA
+# never moves, including past a security fix. Dependabot rewrites the pins and
+# the trailing version comments for us.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Lisbon
+    # One pull request for all of them. Six separate PRs a week, each needing
+    # the same review, is how pinning stops being maintained.
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'chore(ci)'
+    labels:
+      - dependencies
+    open-pull-requests-limit: 5

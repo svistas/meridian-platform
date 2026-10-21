@@ -2,12 +2,34 @@
 
 | Workflow | Trigger | AWS role | What it does |
 |---|---|---|---|
-| `datastore-plan.yml` | `pull_request` touching the path | `meridian-ci-plan` (read-only) | Validates requests, runs the unit tests, `terraform plan`, comments on the PR, labels judgment cases |
+| `datastore-plan.yml` | every `pull_request` | `meridian-ci-plan` (read-only) | Validates requests, runs the unit tests, `terraform plan`, comments on the PR, labels judgment cases |
 | `datastore-apply.yml` | `push` to `main` touching the path | `meridian-ci-apply` | Applies, verifies every guarantee row, publishes the inventory |
 | `datastore-teardown.yml` | `workflow_dispatch`, input `destroy` | `meridian-ci-apply` | Destroys every datastore in the path |
 
 No workflow uses `pull_request_target`, no workflow stores an AWS key, and
 every third-party action is pinned to a full commit SHA.
+
+## Why the plan workflow has no paths filter
+
+It runs on every pull request and decides for itself whether anything relevant
+changed, by diffing against the base branch.
+
+A `paths:` filter looks equivalent and is not. A filtered-out workflow does not
+run, which means it never reports a check — so a pull request touching nothing
+in the path would wait forever on a required check that is never coming. Making
+the workflow always run and exit early keeps the check reporting on every pull
+request, which is what a branch protection rule needs.
+
+When nothing relevant changed the job succeeds immediately, posts no comment
+and touches no labels; the run summary says why. "Relevant" means
+`paths/compliant-datastore/**`, `.github/workflows/datastore-plan.yml`, or
+`.tool-versions`.
+
+## Keeping the action pins current
+
+`.github/dependabot.yml` checks weekly and opens a single grouped pull request
+for all of them. Pinning to a SHA means a pin never moves on its own,
+including past a security fix, so something has to move it deliberately.
 
 ## How the judgment-case label is decided
 
