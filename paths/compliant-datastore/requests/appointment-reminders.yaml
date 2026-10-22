@@ -1,8 +1,0 @@
-service: appointment-reminders
-team: appointments
-cost_center: patient-app
-environment: sandbox
-engine: postgres
-size: small
-classification: phi
-data_leaves_meridian: "no"
