@@ -39,6 +39,7 @@ init:
 TF_VARS = \
   -var="vpc_id=$(call bootstrap_out,vpc_id)" \
   -var="ci_apply_role_arn=$(call bootstrap_out,ci_apply_role_arn)" \
+  -var="datastore_clients_security_group_id=$(call bootstrap_out,datastore_clients_security_group_id)" \
   -var='private_subnet_ids=$(shell $(TF) -chdir=$(BOOTSTRAP) output -json private_subnet_ids 2>/dev/null)'
 
 plan: init

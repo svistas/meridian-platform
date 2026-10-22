@@ -20,7 +20,7 @@ output "kubeconfig_command" {
   value       = "aws eks update-kubeconfig --name ${aws_eks_cluster.session.name} --region ${var.region}"
 }
 
-output "datastores_reachable" {
-  description = "Path 01 datastores the cluster can connect to."
-  value       = data.aws_security_groups.datastores.ids
+output "datastore_clients_group_id" {
+  description = "The membership group the nodes joined. Path 01 databases accept connections from it."
+  value       = var.datastore_clients_security_group_id
 }

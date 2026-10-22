@@ -50,6 +50,54 @@ resource "aws_cloudwatch_log_group" "cluster" {
   retention_in_days = 7
 }
 
+# A launch template exists for one reason: to put the nodes in the
+# datastore-clients group. EKS only attaches the cluster security group to a
+# managed node group, and there is no other way to add a second one.
+#
+# Because the template names security groups, EKS stops adding the cluster
+# group itself, so it has to be listed here too.
+resource "aws_launch_template" "node" {
+  name_prefix = "meridian-session-node-"
+  description = "Session nodes: cluster group, plus membership of datastore-clients"
+
+  vpc_security_group_ids = [
+    aws_eks_cluster.session.vpc_config[0].cluster_security_group_id,
+    var.datastore_clients_security_group_id,
+  ]
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size = 20
+      volume_type = "gp3"
+      encrypted   = true
+    }
+  }
+
+  # EKS sets these on the template it generates. Spelling them out keeps the
+  # same posture rather than silently falling back to the EC2 defaults, which
+  # allow IMDSv1. A hop limit of 1 keeps containers away from the instance
+  # credentials; services get their own identity through Pod Identity.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "meridian-session-node"
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_eks_node_group" "session" {
   cluster_name    = aws_eks_cluster.session.name
   node_group_name = "default"
@@ -67,7 +115,11 @@ resource "aws_eks_node_group" "session" {
   capacity_type  = "SPOT"
   instance_types = var.node_instance_types
   ami_type       = "AL2023_ARM_64_STANDARD"
-  disk_size      = 20
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = aws_launch_template.node.latest_version
+  }
 
   scaling_config {
     desired_size = var.node_count

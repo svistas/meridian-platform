@@ -59,14 +59,23 @@ session ends the association goes and the subnets are sealed again.
 
 ## Where the two paths meet
 
-Path 01 gives every datastore a security group with **no ingress at all**, so
-nothing can connect to it. `datastore-access.tf` is what opens it: while a
-session is up, each datastore accepts Postgres from the cluster's security
-group. Between sessions, databases accept nothing again.
+Through a membership group, not by editing each other's resources.
 
-The rule is discovered by tag, so it covers whatever datastores exist at the
-time and needs no editing when one is added. With no datastores, it creates
-nothing.
+The bootstrap owns a security group called `meridian-datastore-clients`. It
+has no rules and never will; it exists only to be a name both paths can point
+at. Path 01 writes one rule on each database — *accept Postgres from members
+of that group* — and path 01 is the only thing that ever touches it. Path 02
+puts its nodes in the group, through the launch template, and that is the
+whole of the connection.
+
+While a session is up the group has members and the databases are reachable.
+When the session ends the nodes are gone, the group is empty, and the
+databases accept nothing again — without anyone having edited a rule.
+
+An earlier version had the session stack add an ingress rule to each
+datastore's security group on the way up. It worked, but it meant one path
+reaching into another path's resources, and a failed teardown would leave a
+rule behind on a database that outlives the session.
 
 ## `make session-down` and the check
 

@@ -24,6 +24,11 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "datastore_clients_security_group_id" {
+  description = "Bootstrap output datastore_clients_security_group_id. Databases accept connections from members of this group."
+  type        = string
+}
+
 variable "engine_version" {
   description = "Major Postgres version for every datastore. Major only: RDS picks the current minor, and auto_minor_version_upgrade keeps it current."
   type        = string

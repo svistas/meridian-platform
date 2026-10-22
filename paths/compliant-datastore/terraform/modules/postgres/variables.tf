@@ -47,6 +47,11 @@ variable "vpc_id" {
   type = string
 }
 
+variable "datastore_clients_security_group_id" {
+  description = "Bootstrap membership group. Members may reach this datastore on 5432; nothing else can."
+  type        = string
+}
+
 variable "engine_version" {
   type = string
 }
