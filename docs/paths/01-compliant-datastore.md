@@ -55,4 +55,24 @@ Not included: ~3–5 weeks of calendar delay per run, and the risk of mislabelle
 
 ## D5. Impact and validation
 
-To be filled in during the MVP (before/after time per run, waiting, rework, trust, adoption signal).
+Validated 21 October 2026 on the first real run: one request file, one pull
+request, a database the same morning. Full record, including the simulated
+validation interview: [01-compliant-datastore-validation.md](01-compliant-datastore-validation.md).
+
+| Dimension | Before (deep dive) | After (this run) |
+|---|---|---|
+| Time per run, user team | ~12 hours of effort over 3.5 weeks | Minutes of effort, same morning |
+| Waiting | Two human queues: Cloud Ops ~9 days, review board ~12 days | Machine time only |
+| Time per run, adjacent teams | Cloud Ops ~4 h, Security ~3 h | Zero: no judgment case, so no human needed |
+| Rework | A review re-submission over an encryption detail | None for the developer |
+| Unwritten rules | Four, discovered along the way | Zero: all four are enforced defaults, and verified |
+
+All 12 guarantee checks passed against the AWS API. The 3x3 proposal's target —
+under two hours, same day — is met.
+
+Two things the run showed that the table does not. The first apply failed on a
+platform-side IAM gap; what recovered it was a fast fix and a verification
+report showing every promise as PASS, which is the moment trust is most
+fragile. And the time is not all saved: the database sits in private subnets,
+so a developer gets one they cannot yet connect to. The path's full value
+arrives with [path 02](02-service-to-environment.md).
