@@ -34,7 +34,13 @@ resource "aws_eks_cluster" "session" {
     Name = "meridian-session"
   }
 
-  depends_on = [aws_iam_role_policy_attachment.cluster]
+  # The log group must exist before the cluster, or EKS creates it on first
+  # log delivery with no retention and Terraform's own log group then fails to
+  # create. Declaring it is not enough -- without this, the two race.
+  depends_on = [
+    aws_iam_role_policy_attachment.cluster,
+    aws_cloudwatch_log_group.cluster,
+  ]
 }
 
 # Control plane logs land in a log group AWS creates implicitly with no
@@ -42,6 +48,54 @@ resource "aws_eks_cluster" "session" {
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/meridian-session/cluster"
   retention_in_days = 7
+}
+
+# A launch template exists for one reason: to put the nodes in the
+# datastore-clients group. EKS only attaches the cluster security group to a
+# managed node group, and there is no other way to add a second one.
+#
+# Because the template names security groups, EKS stops adding the cluster
+# group itself, so it has to be listed here too.
+resource "aws_launch_template" "node" {
+  name_prefix = "meridian-session-node-"
+  description = "Session nodes: cluster group, plus membership of datastore-clients"
+
+  vpc_security_group_ids = [
+    aws_eks_cluster.session.vpc_config[0].cluster_security_group_id,
+    var.datastore_clients_security_group_id,
+  ]
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size = 20
+      volume_type = "gp3"
+      encrypted   = true
+    }
+  }
+
+  # EKS sets these on the template it generates. Spelling them out keeps the
+  # same posture rather than silently falling back to the EC2 defaults, which
+  # allow IMDSv1. A hop limit of 1 keeps containers away from the instance
+  # credentials; services get their own identity through Pod Identity.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "meridian-session-node"
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eks_node_group" "session" {
@@ -52,10 +106,20 @@ resource "aws_eks_node_group" "session" {
 
   # Spot, and ARM. A session is interruptible by definition: if a node is
   # reclaimed the cluster replaces it, and the worst case is redeploying.
+  #
+  # Several types rather than one: a single type means a single spot pool, and
+  # when that pool is short the node group cannot launch anything at all. With
+  # four, EKS moves to the next pool instead of leaving the session without
+  # nodes. They are all ARM, matching the AMI type below, and all small enough
+  # that the worst case is a few cents an hour more than the best.
   capacity_type  = "SPOT"
-  instance_types = [var.node_instance_type]
+  instance_types = var.node_instance_types
   ami_type       = "AL2023_ARM_64_STANDARD"
-  disk_size      = 20
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = aws_launch_template.node.latest_version
+  }
 
   scaling_config {
     desired_size = var.node_count

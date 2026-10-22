@@ -31,6 +31,11 @@ output "private_subnet_ids" {
   value = [for s in aws_subnet.private : s.id]
 }
 
+output "datastore_clients_security_group_id" {
+  description = "Membership group. Path 01 databases accept connections from it; path 02 nodes join it."
+  value       = aws_security_group.datastore_clients.id
+}
+
 output "db_subnet_group_name" {
   value = aws_db_subnet_group.datastores.name
 }

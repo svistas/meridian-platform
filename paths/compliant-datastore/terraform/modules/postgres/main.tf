@@ -62,11 +62,17 @@ resource "aws_db_parameter_group" "this" {
   }
 }
 
-# No ingress rules: nothing can reach the database yet. Path 02 is what
-# connects a running service to it.
+# One ingress rule, and it names a group rather than an address: members of
+# the platform's datastore-clients group may reach this database on 5432, and
+# nothing else can. While no session is running the group has no members, so
+# in practice the database still accepts nothing.
+#
+# The rule is written here, by the path that owns the database, and never
+# edited by anyone else. Path 02 opens the door by joining the group, not by
+# reaching into this security group.
 resource "aws_security_group" "this" {
   name        = "${var.service}-postgres"
-  description = "Datastore for ${var.service}. No ingress until a service is attached."
+  description = "Datastore for ${var.service}. Reachable only by members of the datastore-clients group."
   vpc_id      = var.vpc_id
 
   tags = local.tags
@@ -74,6 +80,18 @@ resource "aws_security_group" "this" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "from_clients" {
+  security_group_id = aws_security_group.this.id
+  description       = "Postgres from members of meridian-datastore-clients"
+
+  referenced_security_group_id = var.datastore_clients_security_group_id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+
+  tags = merge(local.tags, { Name = "${var.service}-postgres-from-clients" })
 }
 
 # RDS creates these log groups itself on first export, with no retention set,

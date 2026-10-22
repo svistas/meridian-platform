@@ -39,4 +39,6 @@ module "postgres" {
   db_subnet_group_name = var.db_subnet_group_name
   vpc_id               = var.vpc_id
   engine_version       = var.engine_version
+
+  datastore_clients_security_group_id = var.datastore_clients_security_group_id
 }

@@ -39,6 +39,7 @@ init:
 TF_VARS = \
   -var="vpc_id=$(call bootstrap_out,vpc_id)" \
   -var="ci_apply_role_arn=$(call bootstrap_out,ci_apply_role_arn)" \
+  -var="datastore_clients_security_group_id=$(call bootstrap_out,datastore_clients_security_group_id)" \
   -var='private_subnet_ids=$(shell $(TF) -chdir=$(BOOTSTRAP) output -json private_subnet_ids 2>/dev/null)'
 
 plan: init
@@ -77,6 +78,9 @@ cost:
 	@echo "  EKS control plane          0.100"
 	@echo "  NAT gateway                0.048   (plus data processed)"
 	@echo "  Elastic IP (in use)        0.005"
-	@echo "  2 x t4g.small spot         0.018   (on demand: 0.037)"
+	@echo "  2 nodes, spot        0.017-0.059   (t4g.small to m7g.medium)"
 	@echo "  ----------------------------------"
-	@echo "  about                      0.171   ~USD 1.37 for an 8-hour day"
+	@echo "  about               0.170-0.212   ~USD 1.36-1.70 for an 8-hour day"
+	@echo ""
+	@echo "The range is which spot pool EKS can get. Cheapest is two"
+	@echo "t4g.small; worst case two m7g.medium, about 4 cents an hour more."

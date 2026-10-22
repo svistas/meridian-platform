@@ -22,6 +22,15 @@ variable "ci_apply_role_arn" {
   type        = string
 }
 
+variable "datastore_clients_security_group_id" {
+  description = <<-EOT
+    Bootstrap output datastore_clients_security_group_id. Nodes join this
+    group, which is what lets them reach path 01 databases. The session never
+    edits a datastore's own security group.
+  EOT
+  type        = string
+}
+
 variable "public_subnet_cidr" {
   description = "A /24 inside the bootstrap VPC for the NAT gateway. The bootstrap uses 10.20.1.0/24 and 10.20.2.0/24."
   type        = string
@@ -34,10 +43,14 @@ variable "kubernetes_version" {
   default     = "1.37"
 }
 
-variable "node_instance_type" {
-  description = "Smallest instance that runs the system pods plus two small services."
-  type        = string
-  default     = "t4g.small"
+variable "node_instance_types" {
+  description = <<-EOT
+    Instance types the node group may choose from, cheapest first. More than
+    one type means a spot shortage in one pool does not leave the session
+    without nodes. All ARM, to match the AL2023_ARM_64_STANDARD image.
+  EOT
+  type        = list(string)
+  default     = ["t4g.small", "t4g.medium", "m6g.medium", "m7g.medium"]
 }
 
 variable "node_count" {
