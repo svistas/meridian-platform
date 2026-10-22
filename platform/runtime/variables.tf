@@ -1,0 +1,47 @@
+# Everything that persists between sessions comes from the bootstrap and is
+# passed in explicitly, as path 01 does. Nothing here hard-codes an account.
+
+variable "region" {
+  description = "The sandbox region (ADR-0003)."
+  type        = string
+  default     = "eu-west-1"
+}
+
+variable "vpc_id" {
+  description = "Bootstrap output vpc_id."
+  type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "Bootstrap output private_subnet_ids. The cluster and its nodes live here."
+  type        = list(string)
+}
+
+variable "ci_apply_role_arn" {
+  description = "Bootstrap output ci_apply_role_arn. Given an EKS access entry so CI can deploy (sandbox debt, ADR-0006)."
+  type        = string
+}
+
+variable "public_subnet_cidr" {
+  description = "A /24 inside the bootstrap VPC for the NAT gateway. The bootstrap uses 10.20.1.0/24 and 10.20.2.0/24."
+  type        = string
+  default     = "10.20.0.0/24"
+}
+
+variable "kubernetes_version" {
+  description = "EKS version. 1.37 is the current default and in standard support until 2027-12-01."
+  type        = string
+  default     = "1.37"
+}
+
+variable "node_instance_type" {
+  description = "Smallest instance that runs the system pods plus two small services."
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "node_count" {
+  description = "Two nodes, so a spot reclaim does not take the whole cluster."
+  type        = number
+  default     = 2
+}
