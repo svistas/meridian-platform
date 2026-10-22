@@ -33,6 +33,12 @@ variable "budget_limit_usd" {
   default     = "20"
 }
 
+variable "budget_daily_limit_usd" {
+  description = "Daily budget for the sandbox. Catches a session left running overnight, which a monthly budget would not notice for weeks."
+  type        = string
+  default     = "5"
+}
+
 variable "budget_alert_email" {
   description = "Address that receives budget alerts. No default: set it in terraform.tfvars, which is gitignored. See terraform.tfvars.example."
   type        = string
