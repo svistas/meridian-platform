@@ -9,7 +9,7 @@ Paths are placed on the service lifecycle value stream: see [../value-streams/se
 | # | Path | Intent | Status | Cost of inactivity (per year, lower bound) | Confidence |
 |---|---|---|---|---|---|
 | 01 | [Compliant datastore](01-compliant-datastore.md) | Get a datastore I'm allowed to put patient data in | Validated | ~€57,000 | Medium |
-| 02 | [Service to environment](02-service-to-environment.md) | Get my new service running without waiting on one person | Discovering | ~€27,000 | Medium |
+| 02 | [Service to environment](02-service-to-environment.md) | Get my new service running without waiting on one person | Building | ~€27,000 | Medium |
 | 03 | [Isolated test environment](03-isolated-test-environment.md) | Test against realistic dependencies without competing for staging | Queued | ~€46,800 | Low |
 | | **Total** | | | **~€130,800** | |
 

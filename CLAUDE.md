@@ -8,8 +8,12 @@ Galante) and the PlatformEngineering.org AWS reference architecture.
 
 ### Current stage: Stage 2, MVP (non-production)
 
-ADR-0001 is accepted. Build the MVP paths in order, one at a time:
-01 compliant datastore first; 02 and 03 are not started until asked.
+ADR-0001 is accepted. Build the MVP paths in order, one at a time.
+
+Path 01, the compliant datastore, is **validated**: it ran for real, all
+guarantee checks passed, and the removal path was exercised. Path 02, service
+to environment, is **in progress** -- designed in ADR-0005, with ADR-0006
+settling that it runs on ephemeral EKS sessions. Path 03 is **not started**.
 
 - Non-production only: a local cluster or a sandbox account, never production.
 - Do NOT add identity, a central policy engine or state yet. Security rules
