@@ -34,7 +34,13 @@ resource "aws_eks_cluster" "session" {
     Name = "meridian-session"
   }
 
-  depends_on = [aws_iam_role_policy_attachment.cluster]
+  # The log group must exist before the cluster, or EKS creates it on first
+  # log delivery with no retention and Terraform's own log group then fails to
+  # create. Declaring it is not enough -- without this, the two race.
+  depends_on = [
+    aws_iam_role_policy_attachment.cluster,
+    aws_cloudwatch_log_group.cluster,
+  ]
 }
 
 # Control plane logs land in a log group AWS creates implicitly with no
