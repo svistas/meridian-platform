@@ -58,8 +58,14 @@ resource "aws_eks_node_group" "session" {
 
   # Spot, and ARM. A session is interruptible by definition: if a node is
   # reclaimed the cluster replaces it, and the worst case is redeploying.
+  #
+  # Several types rather than one: a single type means a single spot pool, and
+  # when that pool is short the node group cannot launch anything at all. With
+  # four, EKS moves to the next pool instead of leaving the session without
+  # nodes. They are all ARM, matching the AMI type below, and all small enough
+  # that the worst case is a few cents an hour more than the best.
   capacity_type  = "SPOT"
-  instance_types = [var.node_instance_type]
+  instance_types = var.node_instance_types
   ami_type       = "AL2023_ARM_64_STANDARD"
   disk_size      = 20
 

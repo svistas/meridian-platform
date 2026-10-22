@@ -34,10 +34,14 @@ variable "kubernetes_version" {
   default     = "1.37"
 }
 
-variable "node_instance_type" {
-  description = "Smallest instance that runs the system pods plus two small services."
-  type        = string
-  default     = "t4g.small"
+variable "node_instance_types" {
+  description = <<-EOT
+    Instance types the node group may choose from, cheapest first. More than
+    one type means a spot shortage in one pool does not leave the session
+    without nodes. All ARM, to match the AL2023_ARM_64_STANDARD image.
+  EOT
+  type        = list(string)
+  default     = ["t4g.small", "t4g.medium", "m6g.medium", "m7g.medium"]
 }
 
 variable "node_count" {

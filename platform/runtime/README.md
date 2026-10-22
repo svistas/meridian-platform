@@ -19,13 +19,26 @@ eu-west-1 list prices, read from the AWS Pricing API:
 |---|---|
 | EKS control plane | 0.100 |
 | NAT gateway | 0.048 (plus data processed) |
-| 2 x `t4g.small` **spot** | 0.018 (on demand: 0.037) |
 | Elastic IP, in use | 0.005 |
-| **Total** | **≈ 0.171** |
+| 2 nodes, **spot** | 0.017 – 0.059 |
+| **Total** | **0.170 – 0.212** |
 
-About **USD 1.37 for an eight-hour day**, and near zero between sessions. The
-daily budget of USD 5 would fire after roughly 29 hours — that is, the morning
-after a session was left running overnight.
+The node line is a range because the group may choose any of four types,
+depending on which spot pool has capacity:
+
+| Type | Spot, per node | On demand |
+|---|---|---|
+| `t4g.small` | 0.0085 | 0.0184 |
+| `t4g.medium` | 0.0178 | 0.0368 |
+| `m6g.medium` | 0.0163 | 0.0430 |
+| `m7g.medium` | 0.0292 | 0.0455 |
+
+So **USD 1.36 to 1.70 for an eight-hour day**, and near zero between sessions.
+The worst case is about four cents an hour more than the best, which is a
+price worth paying not to have a session fail because one spot pool is short.
+
+The daily budget of USD 5 would fire after roughly 24 to 29 hours — the
+morning after a session was left running overnight.
 
 Not included: data processed by the NAT gateway, CloudWatch log ingestion, and
 the EBS volumes attached to nodes. All small, none hourly in the way the
